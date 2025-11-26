@@ -1,6 +1,8 @@
+#Importing packages
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
+
 
 def gaussian2d(x, theta, mu_x, mu_theta, sigma_x, sigma_theta):
     X, T = np.meshgrid(x, theta, indexing='ij')
@@ -11,10 +13,11 @@ def normalization_model_2d(
     stim_center_x, stim_width_x, stim_center_theta, stim_width_theta,
     attn_center_x, attn_width_x, attn_center_theta, attn_width_theta,
     suppression_width_x, suppression_width_theta,
+    contrast=1.0,
     sigma=1.0,
 ):
     # Stimulus field: spatial x orientation Gaussian
-    S = gaussian2d(x, theta, stim_center_x, stim_center_theta, stim_width_x, stim_width_theta)
+    S = contrast * gaussian2d(x, theta, stim_center_x, stim_center_theta, stim_width_x, stim_width_theta)
     # Attention field (shape and spread over neuron prefs)
     A = gaussian2d(x, theta, attn_center_x, attn_center_theta, attn_width_x, attn_width_theta)
     # Excitation: attention * stimulus, for every neuron (x, theta)
@@ -64,5 +67,6 @@ resp = normalization_model_2d(
     attn_center_x=15, attn_width_x=20,      # Try varying attention!
     attn_center_theta=30, attn_width_theta=35,
     suppression_width_x=12, suppression_width_theta=18,   # Suppression field size
+    contrast=0.5,
     sigma=1.0,
 )
