@@ -4,69 +4,150 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 
 
-def gaussian2d(x, theta, mu_x, mu_theta, sigma_x, sigma_theta):
+
+def gaussian2d(x, theta, mu_x, mu_theta, sd_x, sd_theta):
+    '''
+    Generate a 2D Gaussian matrix over space (x) and orientation (theta).
+    
+    Arguments:
+        x: 1D array of spatial positions (neuron preferred position).
+        theta: 1D array of orientation preferences (neuron preferred orientation).
+        mu_x: stimulus or attention centre in space (centre of the Gaussian)
+        mu_theta: stimulus or attention centre in orientation.
+        sd_x: spatial standard deviation (width of the Gaussian)
+        sd_theta: orientation standard deviation.
+
+    Returns:
+        G: 2D numpy array, shape (len(x), len(theta)), value at each (x, theta) pair.
+    '''
+    
+    #Create 2D grids of all x and theta combinations (population grid)
     X, T = np.meshgrid(x, theta, indexing='ij')
-    return np.exp(-0.5 * (((X - mu_x) / sigma_x) ** 2 + ((T - mu_theta) / sigma_theta) ** 2))
+    #Circular difference for orientation (wrap between -90 and 90 degrees)
+    dtheta = ((T - mu_theta +90) % 180) - 90
+    #Calculate 2D Gaussian value for each neuron
+    return np.exp(-0.5 * (((X - mu_x) / sd_x) ** 2 + (dtheta / sd_theta) ** 2))
+
 
 def normalization_model_2d(
     x, theta,
-    stim_center_x, stim_width_x, stim_center_theta, stim_width_theta,
-    attn_center_x, attn_width_x, attn_center_theta, attn_width_theta,
-    suppression_width_x, suppression_width_theta,
-    contrast=1.0,
+    #stimulus 1 parameters
+    stim1_x, stim1_x_size, stim1_theta, stim1_theta_size, stim1_contrast,
+    #stimulus 2 parameters
+    stim2_x, stim2_x_size, stim2_theta, stim2_theta_size, stim2_contrast,
+    #attention field parameters
+    attn_x, attn_sd_x, attn_theta, attn_sd_theta,
+    #suppression widths (standard deviation)
+    suppression_sd_x, suppression_sd_theta,
+    #semi-saturation constant
     sigma=1.0,
+
 ):
-    # Stimulus field: spatial x orientation Gaussian
-    S = contrast * gaussian2d(x, theta, stim_center_x, stim_center_theta, stim_width_x, stim_width_theta)
-    # Attention field (shape and spread over neuron prefs)
-    A = gaussian2d(x, theta, attn_center_x, attn_center_theta, attn_width_x, attn_width_theta)
-    # Excitation: attention * stimulus, for every neuron (x, theta)
+    '''
+    Implements Reynolds & Heeger normalization model of attention 
+    (2D: position x orientation.
+     
+     Arguments:
+        stim1_x: position of stimulus 1 in space.
+        stim1_x_size: spatial size of stimulus 1 (Gaussian width).
+        stim1_theta: orientation of stimulus 1.
+        stim1_theta_size: orientation bandwidth of stimulus 1.
+        stim1_contrast: contrast of stimulus 1.
+
+        stim2_x: position of stimulus 2 in space.
+        stim2_x_size: spatial size of stimulus 2.
+        stim2_theta: orientation of stimulus 2.
+        stim2_theta_size: orientation bandwidth of stimulus 2.
+        stim2_contrast: contrast of stimulus 2.
+
+        attn_x: attention centre in space.
+        attn_sd_x: attention spatial spread.
+        attn_theta: attention centre in orientation.
+        attn_sd_theta: attention field orientation spread.
+
+        suppression_sd_x: suppression pool spread in space.
+        suppression_sd_theta: suppression pool spread in orientation.
+
+        sigma: semi-saturation constant (prevents division by zero, sets curve steepness).
+         
+         Returns: 
+             R: 2D array, population response after normalization
+             '''
+    
+    # STIMULUS DRIVE: spatial x orientation Gaussian, scaled by contrast
+    #Sum of the two stimuli
+    
+    S1 = stim1_contrast * gaussian2d(x, theta, stim1_x, stim1_theta, stim1_x_size, stim1_theta_size)
+    S2 = stim2_contrast * gaussian2d(x, theta, stim2_x, stim2_theta, stim2_x_size, stim2_theta_size)
+   
+    #Total stimulus drive is the sum of the two stimuli
+    S = S1 + S2
+    
+    # ATTENTION FIELD (shape and spread over neuron prefs)
+    A = gaussian2d(x, theta, attn_x, attn_theta, attn_sd_x, attn_sd_theta)
+    
+    # EXCITATORY DRIVE: attention * stimulus, at each population point (neuron)
     E = A * S
-    # Suppressive drive: local normalization across x and orientation
-    I = gaussian_filter(E, [suppression_width_x, suppression_width_theta])
-    # Normalized response for each neuron
+    
+    # SUPPRESSIVE DRIVE: local normalization across x and theta
+    I = gaussian_filter(E, [suppression_sd_x, suppression_sd_theta])
+   
+    # NORMALIZED RESPONSE
     R = E / (sigma + I)
 
-    # Plot as heatmaps
+#PLOTTING
+    #Prepare shared axis properties for plotting 
     plt.figure(figsize=(15, 4))
     imargs = dict(origin='lower', aspect='auto',
-                  extent=[x[0], x[-1], theta[0], theta[-1]])
+                  extent=[x[0], x[-1], theta[0], theta[-1]], 
+                  cmap = 'gray', clim = [0,1])
+    
+    #Plot the raw stimulus
     plt.subplot(1, 3, 1)
     plt.imshow(S.T, **imargs)
-    plt.title('Stimulus S(x,θ)')
+    plt.title('Stimuli S(x,θ)')
     plt.xlabel('Position x')
     plt.ylabel('Orientation θ')
-    plt.colorbar()
+
 
     plt.subplot(1, 3, 2)
     plt.imshow(A.T, **imargs)
     plt.title('Attention A(x,θ)')
     plt.xlabel('Position x')
     plt.ylabel('Orientation θ')
-    plt.colorbar()
+
 
     plt.subplot(1, 3, 3)
     plt.imshow(R.T, **imargs)
     plt.title('Normalized Response R(x,θ)')
     plt.xlabel('Position x')
     plt.ylabel('Orientation θ')
-    plt.colorbar()
+
 
     plt.tight_layout()
     plt.show()
     return R
 
-# Example usage:
-x = np.linspace(-50, 50, 101)
-theta = np.linspace(-90, 90, 91)
+
+# EXAMPLE USAGE AND PARAMETERS
+x = np.linspace(-50, 50, 101)  #Possible positions (space)
+theta = np.linspace(-90, 90, 91)  #Possible orientations (degrees)
 
 resp = normalization_model_2d(
     x, theta,
-    stim_center_x=0, stim_width_x=15,
-    stim_center_theta=0, stim_width_theta=25,
-    attn_center_x=15, attn_width_x=20,      # Try varying attention!
-    attn_center_theta=30, attn_width_theta=35,
-    suppression_width_x=12, suppression_width_theta=18,   # Suppression field size
-    contrast=0.5,
+    # Stimulus 1 (e.g., right side, vertical)
+    stim1_x=25, stim1_x_size=3,
+    stim1_theta=0, stim1_theta_size=25,
+    stim1_contrast=1.0,
+    # Stimulus 2 (e.g., left side, same orientation)
+    stim2_x=-25, stim2_x_size=3,
+    stim2_theta=0, stim2_theta_size=25,
+    stim2_contrast=1.0,
+    # Attention parameters (e.g., focus toward stimulus 1)
+    attn_x=25, attn_sd_x=10,
+    attn_theta=0, attn_sd_theta=180,
+    # Suppression field size
+    suppression_sd_x=12, suppression_sd_theta=18,
+    # Normalization constant
     sigma=1.0,
 )
