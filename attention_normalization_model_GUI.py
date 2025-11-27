@@ -1,3 +1,20 @@
+""" 
+File name       : attention_normalization_model_GUI.py
+Description     : GUI to explore a 2D normalization model of attention (Reynolds & Heeger).
+End of Creation : 27/11/2025
+Authors         : Amalia CAMBI & Winston SEÑA BUNDA
+Python Version  : 3.14.0
+Environment     : Conda (environment name: normalization_attention_model)
+Dependencies    : numpy, scipy, matplotlib, tkinter, PIL
+Usage           : python attention_normalization_model_GUI.py
+Remarks         : This file can be used as is in another Conda environment if the dependencies are installed.
+"""
+
+# ======================================================================
+# Imports packages
+# ======================================================================
+
+
 import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk
@@ -12,7 +29,9 @@ Comments are written for future researchers who may extend or change the model,
 parameters, or GUI structure.
 """
 
-# ====================================================================================================
+# ======================================================================
+# Main code starts here
+# ======================================================================
 
 def gaussian2d(x, theta, mu_x, mu_theta, sd_x, sd_theta):
     """
