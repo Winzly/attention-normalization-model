@@ -6,8 +6,23 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from scipy.ndimage import gaussian_filter
 
+"""
+GUI to explore a 2D normalization model of attention (Reynolds & Heeger).
+Comments are written for future researchers who may extend or change the model,
+parameters, or GUI structure.
+"""
+
+# ====================================================================================================
+
 def gaussian2d(x, theta, mu_x, mu_theta, sd_x, sd_theta):
-    """Crée une distribution gaussienne 2D dans l'espace position-orientation"""
+    """
+    2D Gaussian over spatial position × orientation.
+    Used to define:
+    - stimulus profiles
+    - attention fields
+    - orientation tuning
+    The wrapped angular difference ensures correct periodic orientation behavior (180° symmetry).
+    """
     X, T = np.meshgrid(x, theta, indexing='ij')
     dtheta = ((T - mu_theta + 90) % 180) - 90
     return np.exp(-0.5 * (((X - mu_x) / sd_x) ** 2 + (dtheta / sd_theta) ** 2))
@@ -19,8 +34,16 @@ def normalization_model_2d(
     attn_x, attn_sd_x, attn_theta, attn_sd_theta,
     suppression_sd_x, suppression_sd_theta,
     theta_tuning,
-    sigma=1.0,
+    sigma=1.0
 ):
+    """Core normalization model (Reynolds & Heeger conceptual structure):
+    - Builds two stimuli in 2D (position × orientation)
+    - Applies multiplicative attention gain
+    - Computes suppressive pool via Gaussian filtering
+    - Produces final normalized response:  E / (σ + I)
+
+    Returns intermediates (S1, S2, S, A, E, I, R) for GUI visualization.
+    """
     """Modèle de normalisation pour deux stimuli avec nouveaux paramètres"""
     # Créer les deux stimuli
     S1 = stim1_contrast * gaussian2d(x, theta, stim1_x, stim1_theta, stim1_x_size, theta_tuning)
@@ -43,6 +66,18 @@ def normalization_model_2d(
 
 class Normalization2DGUI:
     def __init__(self, root):
+        """
+        Build the entire GUI layout:
+
+        LEFT:  vertical scrolling slider panel
+               → controls every parameter of the normalization model
+
+        RIGHT: matplotlib figure containing:
+               - 4 heatmaps (Stimulus, Attention, Suppression, Response)
+               - 1 spatial profile at θ = 0°
+
+        Sliders update the model continuously in real-time.
+        """
         self.root = root
         self.root.title("Modèle de Normalisation d'Attention 2D - Reynolds & Heeger")
         self.root.geometry("1600x900")
@@ -82,13 +117,16 @@ class Normalization2DGUI:
             self.slider_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         self.slider_canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
-        # Sliders
+        # Container for all Tkinter slider widgets.
+        # Allows bulk read/update/reset of all parameters.
         self.sliders = {}
 
         # Grilles spatiales
         self.x = np.linspace(-50, 50, 101)
         self.theta = np.linspace(-90, 90, 91)
-
+        # Slider specification list.
+        # Each entry defines: (label, min, max, default)
+        # Structured into sections so researchers can easily add/remove parameters.
         slider_specs = [
             # Stimulus 1
             ("=== STIMULUS 1 ===", None, None, None),
@@ -172,9 +210,9 @@ class Normalization2DGUI:
         self.right_frame = tk.Frame(main_frame)
         self.right_frame.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-        # Figure pour heatmaps et courbes
+        # Figure for heatmaps and curves
         self.fig = plt.Figure(figsize=(12, 8))
-        
+
         # Heatmaps en haut (4 colonnes)
         self.ax_stimulus = self.fig.add_subplot(3, 4, 1)
         self.ax_attention = self.fig.add_subplot(3, 4, 2)
@@ -198,11 +236,14 @@ class Normalization2DGUI:
         self.update_plots()
         
     def get_slider_values(self):
-        """Récupère toutes les valeurs des sliders"""
+        """Return a dictionary mapping slider labels → current numerical values."""
         return {label: slider.get() for label, slider in self.sliders.items()}
 
     def reset_sliders(self):
-        """Remet tous les sliders à leurs valeurs initiales"""
+        """
+        Reset all sliders to default values.
+        Useful for experiments where the model must return to a clean baseline.
+        """
         initial_values = {
             "Position X": -25,
             "Taille (σₓ)": 2,
@@ -227,7 +268,14 @@ class Normalization2DGUI:
         self.update_plots()
 
     def update_plots(self):
-        """Met à jour tous les plots"""
+        """Main update routine.
+        1. Reads all slider values
+        2. Recomputes the normalization model
+        3. Updates:
+            - the four heatmaps (stimulus / attention / suppression / response)
+            - the spatial response profile at θ = 0°
+        Called automatically whenever any slider moves.
+        """
         vals = self.get_slider_values()
         
         # Extraire les paramètres
